@@ -1,0 +1,23 @@
+{
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web",
+    "ios": "expo start --ios",
+    "android": "expo start --android",
+    "build": "expo export --platform web",
+    "build:web": "expo export --platform web",
+    "build:ios": "eas build --platform ios --profile production",
+    "build:android": "eas build --platform android --profile production",
+    "build:all": "eas build --platform all --profile production",
+    "submit:ios": "eas submit --platform ios --latest",
+    "submit:android": "eas submit --platform android --latest",
+    "submit:all": "eas submit --platform all --latest",
+    "update": "eas update --branch production",
+    "update:rollback": "eas update:rollback --branch production",
+    "credentials": "eas credentials",
+    "setup-deploy": "bash scripts/setup-deployment.sh",
+    "test": "jest",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  }
+}

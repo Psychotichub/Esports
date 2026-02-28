@@ -1,0 +1,344 @@
+================================================================================
+4psychotic - Complete Expo Build Package (Frontend + Backend)
+================================================================================
+
+📦 PACKAGE SIZE: 765 KB
+
+This comprehensive package contains everything needed for a complete Expo build
+including frontend (React Native), backend (Express + tRPC), and all documentation.
+
+================================================================================
+📱 FRONTEND (React Native - Expo)
+================================================================================
+
+app/
+├── _layout.tsx                           # Root layout with bottom tab navigation
+├── screens/
+│   ├── HomeScreen.tsx                   # Hero section, live status, featured content
+│   ├── VideosScreen.tsx                 # YouTube video gallery with modal player
+│   ├── ProfileScreen.tsx                # Channel stats, social links, followers
+│   └── SettingsScreen.tsx               # Contact form, preferences, support
+├── lib/
+│   ├── trpc.ts                          # tRPC client setup
+│   └── TRPCProvider.tsx                 # tRPC provider wrapper
+├── components/
+│   ├── ui/                              # UI components (buttons, inputs, etc.)
+│   ├── external-link.tsx                # External link component
+│   ├── themed-text.tsx                  # Themed text component
+│   └── themed-view.tsx                  # Themed view component
+└── hooks/
+    ├── use-color-scheme.ts              # Color scheme hook
+    └── use-theme-color.ts               # Theme color hook
+
+constants/
+└── theme.ts                             # Color and theme constants
+
+assets/
+└── images/
+    ├── icon.png                         # App icon
+    ├── splash-icon.png                  # Splash screen
+    ├── favicon.png                      # Web favicon
+    ├── android-icon-*.png               # Android icons
+    └── react-logo*.png                  # React logos
+
+Configuration:
+├── app.json                             # Expo configuration
+├── package.json                         # Dependencies
+├── tsconfig.json                        # TypeScript config
+├── .env.local                           # Environment variables
+└── eas.json                             # EAS build profiles
+
+================================================================================
+🖥️ BACKEND (Express + tRPC)
+================================================================================
+
+server/
+├── _core/
+│   ├── index.ts                         # Server entry point
+│   ├── env.ts                           # Environment configuration
+│   ├── context.ts                       # tRPC context
+│   ├── trpc.ts                          # tRPC setup
+│   ├── cookies.ts                       # Cookie handling
+│   ├── oauth.ts                         # OAuth authentication
+│   ├── llm.ts                           # LLM integration
+│   ├── imageGeneration.ts               # Image generation
+│   ├── notification.ts                  # Notifications
+│   ├── voiceTranscription.ts            # Voice transcription
+│   ├── map.ts                           # Maps integration
+│   ├── dataApi.ts                       # Data API
+│   ├── sdk.ts                           # SDK setup
+│   ├── systemRouter.ts                  # System routes
+│   ├── vite.ts                          # Vite integration
+│   └── types/
+│       ├── cookie.d.ts                  # Cookie types
+│       └── manusTypes.ts                # Manus types
+├── routers.ts                           # Main tRPC routes (auth, youtube)
+├── youtube.ts                           # YouTube Data API integration
+├── youtube.test.ts                      # YouTube API tests
+├── db.ts                                # Database helpers
+├── storage.ts                           # S3 storage helpers
+└── auth.logout.test.ts                  # Auth tests
+
+drizzle/
+├── schema.ts                            # Database schema (users table)
+├── relations.ts                         # Table relations
+├── migrations/                          # Database migrations
+├── meta/
+│   ├── _journal.json                    # Migration journal
+│   └── 0000_snapshot.json               # Schema snapshot
+└── 0000_third_network.sql               # Initial migration SQL
+
+shared/
+├── const.ts                             # Shared constants
+├── types.ts                             # Shared types
+└── _core/
+    └── errors.ts                        # Error handling
+
+Configuration:
+├── package.json                         # Backend dependencies
+├── tsconfig.json                        # TypeScript config
+└── .env.local                           # Environment variables
+
+================================================================================
+📚 DOCUMENTATION
+================================================================================
+
+1. EXPO-BUILD-COMPLETE-GUIDE.md ⭐
+   - Complete guide to all files
+   - Frontend code examples
+   - Backend code examples
+   - Configuration setup
+   - Deployment instructions
+
+2. 4psychotic-BACKEND-CODE.md
+   - Complete backend code reference
+   - API endpoints documentation
+   - Database schema details
+   - How to add new features
+   - Troubleshooting guide
+
+3. START_HERE.md (in mobile folder)
+   - Quick start guide
+   - 5-minute setup
+   - Project overview
+
+4. EXPO_DEPLOYMENT_WINDOWS.md (in mobile folder)
+   - Expo deployment guide
+   - Windows-specific instructions
+   - Troubleshooting
+
+5. DEPLOY_GUIDE.md (in mobile folder)
+   - Full deployment guide
+   - All platforms (web, iOS, Android)
+   - App Store submission
+   - Google Play submission
+
+6. WINDOWS_SETUP.md (in mobile folder)
+   - Detailed Windows setup
+   - Prerequisites
+   - Installation steps
+
+7. README.md (in mobile folder)
+   - General project overview
+   - Features list
+   - Project structure
+
+================================================================================
+🛠️ DEPLOYMENT SCRIPTS
+================================================================================
+
+scripts/ (in mobile folder)
+├── deploy.bat                           # Master deployment (Windows)
+├── deploy-web.bat                       # Web deployment (Windows)
+├── deploy-ios.bat                       # iOS deployment (Windows)
+├── deploy-android.bat                   # Android deployment (Windows)
+├── deploy.sh                            # Master deployment (Mac/Linux)
+├── deploy-web.sh                        # Web deployment (Mac/Linux)
+├── deploy-ios.sh                        # iOS deployment (Mac/Linux)
+└── deploy-android.sh                    # Android deployment (Mac/Linux)
+
+================================================================================
+✨ FEATURES INCLUDED
+================================================================================
+
+Frontend Features:
+✅ 4 Complete Screens
+   - Home (hero, live status, featured content)
+   - Videos (YouTube gallery, modal player)
+   - Profile (channel stats, social links)
+   - Settings (contact form, preferences)
+
+✅ Bottom Tab Navigation
+   - Smooth transitions
+   - Active state indicators
+   - Icon badges
+
+✅ Real-Time Integration
+   - YouTube Data API
+   - tRPC backend connection
+   - Live streaming status
+
+✅ Dark Theme
+   - Neon red (#ff1744) accents
+   - Teal (#00e5ff) highlights
+   - Black void background (#0a0e1a)
+
+✅ Cross-Platform
+   - Web (all browsers)
+   - iOS (iPhone 12+)
+   - Android (8.0+)
+
+Backend Features:
+✅ tRPC API
+   - Type-safe endpoints
+   - YouTube integration
+   - Authentication
+   - Error handling
+
+✅ YouTube Integration
+   - Live status detection
+   - Channel statistics
+   - Recent videos
+   - Real-time updates
+
+✅ Database
+   - MySQL with Drizzle ORM
+   - User authentication
+   - Extensible schema
+
+✅ Security
+   - OAuth authentication
+   - Environment variables
+   - Secure API routes
+
+================================================================================
+🚀 QUICK START
+================================================================================
+
+Frontend:
+1. Extract zip file
+2. cd 4psychotic-mobile
+3. npm install
+4. npx expo login
+5. npx expo publish
+
+Backend:
+1. cd server
+2. npm install
+3. pnpm db:push
+4. npm run build
+5. npm start
+
+================================================================================
+📊 PROJECT STRUCTURE
+================================================================================
+
+4psychotic-expo-complete/
+├── 4psychotic-mobile/                   # Frontend (React Native)
+│   ├── app/                             # App screens and layout
+│   ├── assets/                          # Images and icons
+│   ├── constants/                       # Theme and constants
+│   ├── scripts/                         # Deployment scripts
+│   ├── package.json                     # Dependencies
+│   └── app.json                         # Expo config
+│
+├── 4psychotic-landing/server/           # Backend (Express)
+│   ├── _core/                           # Core server files
+│   ├── routers.ts                       # API routes
+│   ├── youtube.ts                       # YouTube integration
+│   └── db.ts                            # Database helpers
+│
+├── 4psychotic-landing/drizzle/          # Database
+│   ├── schema.ts                        # Database schema
+│   ├── migrations/                      # Migrations
+│   └── relations.ts                     # Relations
+│
+├── 4psychotic-landing/shared/           # Shared code
+│   ├── const.ts                         # Constants
+│   └── types.ts                         # Types
+│
+├── EXPO-BUILD-COMPLETE-GUIDE.md         # Complete guide
+├── 4psychotic-BACKEND-CODE.md           # Backend reference
+└── EXPO-COMPLETE-PACKAGE-CONTENTS.txt   # This file
+
+================================================================================
+🔐 ENVIRONMENT VARIABLES
+================================================================================
+
+Frontend (.env.local):
+EXPO_PUBLIC_API_URL=https://your-backend-url
+EXPO_PUBLIC_YOUTUBE_CHANNEL_ID=your-channel-id
+
+Backend (.env.local):
+DATABASE_URL=mysql://user:password@host/database
+YOUTUBE_API_KEY=your-youtube-api-key
+YOUTUBE_CHANNEL_ID=your-channel-id
+JWT_SECRET=your-secret-key
+NODE_ENV=production
+
+================================================================================
+📦 WHAT'S INCLUDED
+================================================================================
+
+✅ Complete React Native source code
+✅ Complete Express backend code
+✅ Database schema and migrations
+✅ tRPC API setup
+✅ YouTube Data API integration
+✅ Configuration files (app.json, package.json, etc.)
+✅ Deployment scripts (Windows & Mac/Linux)
+✅ Comprehensive documentation
+✅ Environment templates
+✅ UI components and hooks
+✅ Theme and constants
+✅ All assets and icons
+
+================================================================================
+🎯 DEPLOYMENT OPTIONS
+================================================================================
+
+1. Expo (Recommended for Testing)
+   npx expo publish
+
+2. Web (Vercel/Netlify)
+   npm run build
+   vercel --prod
+
+3. iOS App Store
+   eas build --platform ios --profile production
+   eas submit --platform ios --latest
+
+4. Google Play
+   eas build --platform android --profile production
+   eas submit --platform android --latest
+
+================================================================================
+📞 SUPPORT RESOURCES
+================================================================================
+
+- Read EXPO-BUILD-COMPLETE-GUIDE.md for complete overview
+- Read 4psychotic-BACKEND-CODE.md for backend reference
+- Read EXPO_DEPLOYMENT_WINDOWS.md for deployment
+- Visit https://docs.expo.dev for Expo documentation
+- Visit https://trpc.io for tRPC documentation
+- Visit https://reactnative.dev for React Native docs
+
+================================================================================
+✅ NEXT STEPS
+================================================================================
+
+1. Extract the zip file
+2. Read EXPO-BUILD-COMPLETE-GUIDE.md
+3. Follow the Quick Start section
+4. Setup frontend and backend
+5. Deploy to Expo/App Stores
+6. Share your app!
+
+================================================================================
+
+Built with ❤️ by Manus
+February 2025
+
+Complete Expo build package ready for production deployment! 🚀
+
+================================================================================

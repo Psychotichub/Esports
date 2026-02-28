@@ -1,0 +1,92 @@
+# Root level gitignore for the entire project
+
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Environment variables and secrets (CRITICAL - DO NOT COMMIT)
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*.local
+*.env
+
+# Build outputs
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Cache
+.cache/
+.npm/
+.yarn/
+
+# Sensitive files (CRITICAL - DO NOT COMMIT)
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+*.keystore
+secrets.json
+config/secrets.json
+
+# Expo specific
+.expo/
+.expo-shared/
+web-build/
+
+# Native build folders
+ios/
+android/
+
+# EAS
+.eas/

@@ -1,0 +1,55 @@
+{
+  "cli": {
+    "version": ">= 5.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m1-medium"
+      },
+      "android": {
+        "resourceClass": "medium"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m1-medium"
+      },
+      "android": {
+        "resourceClass": "medium"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "ios": {
+        "resourceClass": "m1-medium"
+      },
+      "android": {
+        "resourceClass": "large"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "REPLACE_WITH_APP_ID",
+        "appleId": "REPLACE_WITH_APPLE_ID",
+        "appleIdPassword": "@env APPLE_ID_PASSWORD",
+        "teamId": "REPLACE_WITH_TEAM_ID"
+      },
+      "android": {
+        "serviceAccount": "@env ANDROID_SERVICE_ACCOUNT_JSON",
+        "track": "production"
+      }
+    }
+  },
+  "publish": {
+    "production": {
+      "android": true,
+      "ios": true
+    }
+  }
+}
