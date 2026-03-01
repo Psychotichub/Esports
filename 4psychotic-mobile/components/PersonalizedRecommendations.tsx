@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { trackRecommendationClick, trackRecommendationImpression } from '../lib/analytics';
 import {
   View,
   Text,
@@ -54,6 +55,11 @@ export default function PersonalizedRecommendations({
       const recs = await getPersonalizedRecommendations(videos, 6);
       setRecommendations(recs);
       
+      // Track impressions for all recommendations
+      recs.forEach(rec => {
+        trackRecommendationImpression(rec.videoId);
+      });
+      
       // Fade in animation
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -69,6 +75,7 @@ export default function PersonalizedRecommendations({
 
   const handleVideoPress = (video: RecommendedVideo) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    trackRecommendationClick(video.videoId);
     onVideoPress(video);
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,13 +15,16 @@ import {
   ScrollView,
   Animated,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { Play, X, Eye, Search, Filter, ChevronDown, Clock, TrendingUp, Heart, ListPlus, ListMusic } from 'lucide-react-native';
+import { Play, X, Eye, Search, Filter, Clock, TrendingUp, Heart, ListPlus, ListMusic, MessageCircle, Share2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import TopNavBar from '../../components/TopNavBar';
 import VideoPreview from '../../components/VideoPreview';
+import AuthRequiredModal from '../../components/AuthRequiredModal';
+import { useAuth } from '../../lib/authContext';
 import { saveWatchHistory, getWatchHistory, WatchHistoryItem, updateWatchProgress } from '../../lib/watchHistory';
 import { saveSearchHistory, getSearchHistory, clearSearchHistory } from '../../lib/searchHistory';
 import {
@@ -31,14 +34,13 @@ import {
   getAllPlaylistedVideoIds,
   Playlist,
 } from '../../lib/playlists';
-import {
-  getPlaylists,
-  addVideoToPlaylist,
-  removeVideoFromPlaylist,
-  getPlaylistCountForVideo,
-  getAllPlaylistedVideoIds,
-  Playlist,
-} from '../../lib/playlists';
+import { trackVideoWatch } from '../../lib/engagementTracking';
+import { updateSession } from '../../lib/sessionTracking';
+import { buildContentChain } from '../../lib/contentChains';
+import { trackSearch, trackScrollDepth, trackPlaylistCreation, trackPlaylistAddition, trackVideoCompletion, trackSessionEnd, getCurrentSession } from '../../lib/analytics';
+import { trpc } from '../../lib/trpc';
+import { useNavigation } from '@react-navigation/native';
+import { recordStreamWatch, getRecentActivity, LiveStreamActivity, PLATFORM_COLORS, PLATFORM_LABELS, formatRelativeTime } from '../../lib/liveStreamActivity';
 
 // Import WebView for native platforms
 let WebView: any = null;
@@ -63,21 +65,21 @@ const WebVideoPlayer = ({ url }: { url: string }) => {
         if (!containerRef.current) return;
         
         // Access DOM node through React Native Web's internal structure
-        const container = containerRef.current as any;
-        let domNode: HTMLElement | null = null;
-        
+      const container = containerRef.current as any;
+      let domNode: HTMLElement | null = null;
+      
         // Try multiple methods to find the DOM node
-        if (container._nativeNode) {
-          domNode = container._nativeNode;
-        } else if (container._internalFiberInstanceHandleDEV?.stateNode) {
-          domNode = container._internalFiberInstanceHandleDEV.stateNode;
+      if (container._nativeNode) {
+        domNode = container._nativeNode;
+      } else if (container._internalFiberInstanceHandleDEV?.stateNode) {
+        domNode = container._internalFiberInstanceHandleDEV.stateNode;
         } else if (container.__domNode) {
           domNode = container.__domNode;
         } else if (container.nodeType === 1) {
           domNode = container;
-        }
-        
-        if (domNode && domNode instanceof HTMLElement) {
+      }
+      
+      if (domNode && domNode instanceof HTMLElement) {
           // Extract video ID and create proper embed URL
           const videoId = getVideoId(url);
           if (!videoId) return;
@@ -89,21 +91,21 @@ const WebVideoPlayer = ({ url }: { url: string }) => {
             domNode.removeChild(iframeRef.current);
           }
           
-          // Create iframe element
-          const iframe = document.createElement('iframe');
+        // Create iframe element
+        const iframe = document.createElement('iframe');
           iframe.src = embedUrl;
-          iframe.style.width = '100%';
-          iframe.style.height = '100%';
-          iframe.style.border = 'none';
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
           iframe.style.display = 'block';
-          iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
-          iframe.setAttribute('allowfullscreen', 'true');
-          iframe.setAttribute('frameborder', '0');
+        iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+        iframe.setAttribute('allowfullscreen', 'true');
+        iframe.setAttribute('frameborder', '0');
           iframe.setAttribute('title', 'YouTube video player');
           iframe.setAttribute('loading', 'lazy');
-          
+        
           // Add iframe to container
-          domNode.appendChild(iframe);
+        domNode.appendChild(iframe);
           iframeRef.current = iframe;
           
           return true;
@@ -120,7 +122,7 @@ const WebVideoPlayer = ({ url }: { url: string }) => {
             setTimeout(setupIframe, 200);
           }
         });
-        
+
         return () => {
           cancelAnimationFrame(rafId);
           if (iframeRef.current && iframeRef.current.parentNode) {
@@ -165,67 +167,41 @@ const getYouTubeThumbnail = (url: string, quality: 'maxresdefault' | 'hqdefault'
   return `https://img.youtube.com/vi/${videoId}/${quality}.jpg`;
 };
 
-const VIDEOS = [
-  {
-    id: 1,
-    title: 'HIGH_LOW #ULTIMATEROYALE',
-    category: 'PUBG Mobile Esports',
-    views: '4',
-    url: 'https://www.youtube.com/embed/0bZsBWRRS1Y',
-    date: '2 weeks ago',
-    color: COLORS.neonRed,
-  },
-  {
-    id: 2,
-    title: 'Ultimate_Highlight',
-    category: 'Gaming Highlights',
-    views: '8',
-    url: 'https://www.youtube.com/embed/RdLG6az6u0Q',
-    date: '2 weeks ago',
-    color: COLORS.neonTeal,
-  },
-  {
-    id: 3,
-    title: '#highlight Ultimate',
-    category: 'Streaming',
-    views: '47',
-    url: 'https://www.youtube.com/embed/rsxGDqVgXe0',
-    date: '3 weeks ago',
-    color: '#ff6b35',
-  },
-  {
-    id: 4,
-    title: 'Ultimate Royale Highlight',
-    category: 'Esports',
-    views: '48',
-    url: 'https://www.youtube.com/embed/ZcIRHSLHlak',
-    date: '3 weeks ago',
-    color: COLORS.neonTeal,
-  },
-  {
-    id: 5,
-    title: 'Psychedelic Gaming Vibes',
-    category: 'Creative',
-    views: '2.9K',
-    url: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    date: 'Jan 19, 2025',
-    color: COLORS.neonRed,
-  },
-  {
-    id: 6,
-    title: 'Best Moments Compilation',
-    category: 'Compilation',
-    views: '4.2K',
-    url: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    date: 'Jan 15, 2025',
-    color: COLORS.neonTeal,
-  },
-];
+// Live streams will be fetched from API - no mock data
+const VIDEOS: Array<{
+  id: number;
+  title: string;
+  category: string;
+  views: string;
+  url: string;
+  date: string;
+  color: string;
+  platform?: 'youtube' | 'facebook' | 'tiktok';
+  isLive?: boolean;
+  thumbnail?: string;
+  /** Creator / channel name shown beneath the title */
+  channelName?: string;
+}> = [];
 
 export default function VideosScreen({ route }: { route?: any }) {
+  const { isAuthenticated, requireAuth } = useAuth();
+  const navigation = useNavigation();
+  
+  // Fetch live streams from all platforms
+  const { data: liveStreams, isLoading: streamsLoading, refetch: refetchStreams } = trpc.youtube.liveStreams.useQuery(
+    undefined,
+    {
+      refetchInterval: 30000, // Refetch every 30 seconds to get latest live streams
+    }
+  );
+
   const [selectedVideo, setSelectedVideo] = useState<typeof VIDEOS[0] | null>(null);
   const [webViewError, setWebViewError] = useState(false);
   const [watchHistory, setWatchHistory] = useState<WatchHistoryItem[]>([]);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authAction, setAuthAction] = useState<string>('like');
+  const [likedVideos, setLikedVideos] = useState<Set<string>>(new Set());
+  const [videoLikes, setVideoLikes] = useState<{ [key: string]: number }>({});
   
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -233,22 +209,28 @@ export default function VideosScreen({ route }: { route?: any }) {
   const [sortBy, setSortBy] = useState<'newest' | 'views' | 'liked'>('newest');
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
-  const [showSortMenu, setShowSortMenu] = useState(false);
   const [autoPlayNext, setAutoPlayNext] = useState(false);
   
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [allVideos, setAllVideos] = useState<typeof VIDEOS>(VIDEOS);
+  // Convert live streams to video format
+  const [allVideos, setAllVideos] = useState<typeof VIDEOS>([]);
   const flatListRef = useRef<FlatList>(null);
+  
+  // Pagination state (disabled for live streams — kept for code compatibility)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoadingMore] = useState(false);
+  const [hasMore] = useState(false);
+
+  // Pull-to-refresh
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Recently watched live streams (from activity tracking)
+  const [recentActivity, setRecentActivity] = useState<LiveStreamActivity[]>([]);
   
   // Video preview state
   const [previewVideo, setPreviewVideo] = useState<typeof VIDEOS[0] | null>(null);
   const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 });
   const [isLongPressing, setIsLongPressing] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const cardLayoutRef = useRef<{ [key: number]: { x: number; y: number; width: number; height: number } }>({});
   
   // Playlist state
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -259,15 +241,80 @@ export default function VideosScreen({ route }: { route?: any }) {
   // Get initial filter from navigation params
   const initialFilter = route?.params?.filter || 'all';
 
+  // Convert live streams to video format
+  React.useEffect(() => {
+    if (liveStreams && liveStreams.length > 0) {
+      const convertedVideos = liveStreams.map((stream, index) => {
+        // Determine color based on platform
+        let color = COLORS.neonRed;
+        if (stream.platform === 'facebook') {
+          color = '#1877f2'; // Facebook blue
+        } else if (stream.platform === 'tiktok') {
+          color = '#ff0050'; // TikTok pink/red
+        }
+
+        // Format viewer count
+        const views = stream.viewerCount >= 1000 
+          ? `${(stream.viewerCount / 1000).toFixed(1)}K`
+          : stream.viewerCount.toString();
+
+        // Format date (if startedAt available)
+        let date = 'Live now';
+        if (stream.startedAt) {
+          const startTime = new Date(stream.startedAt);
+          const now = new Date();
+          const diffMinutes = Math.floor((now.getTime() - startTime.getTime()) / (1000 * 60));
+          if (diffMinutes < 60) {
+            date = `${diffMinutes}m ago`;
+          } else {
+            const diffHours = Math.floor(diffMinutes / 60);
+            date = `${diffHours}h ago`;
+          }
+        }
+
+        return {
+          id: index + 1,
+          title: stream.title,
+          category: stream.platform.charAt(0).toUpperCase() + stream.platform.slice(1) + ' Live',
+          views,
+          url: stream.url,
+          date,
+          color,
+          platform: stream.platform,
+          isLive: stream.isLive,
+          thumbnail: stream.thumbnail,
+          channelName: stream.channelName,
+        };
+      });
+      setAllVideos(convertedVideos);
+    } else {
+      setAllVideos([]);
+    }
+  }, [liveStreams]);
+
   // Load watch history and search history on mount
   React.useEffect(() => {
     loadWatchHistory();
     loadSearchHistory();
     loadPlaylists();
+    loadRecentActivity();
     if (initialFilter !== 'all') {
       setActiveFilter(initialFilter);
     }
   }, [initialFilter]);
+
+  const loadRecentActivity = async () => {
+    const activity = await getRecentActivity(6);
+    setRecentActivity(activity);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetchStreams();
+    await loadRecentActivity();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsRefreshing(false);
+  };
 
   const loadWatchHistory = async () => {
     const history = await getWatchHistory();
@@ -314,74 +361,43 @@ export default function VideosScreen({ route }: { route?: any }) {
 
   const handleVideoPress = async (video: typeof VIDEOS[0]) => {
     // Save to watch history when video is opened
-    const videoId = getVideoId(video.url);
+    const videoId = video.platform === 'youtube' ? (getVideoId(video.url) ?? video.url) : video.url;
     if (videoId) {
       const existingHistory = watchHistory.find(h => h.videoId === videoId);
       await saveWatchHistory({
         videoId,
         videoUrl: video.url,
         title: video.title,
-        thumbnail: getYouTubeThumbnail(video.url) || '',
+        thumbnail: video.thumbnail ?? getYouTubeThumbnail(video.url) ?? '',
         category: video.category,
         progress: existingHistory?.progress || 0,
       });
       // Reload history
       await loadWatchHistory();
+
+      // Record rich live stream activity
+      await recordStreamWatch({
+        streamId: videoId,
+        title: video.title,
+        platform: (video.platform ?? 'youtube') as any,
+        channelName: video.channelName ?? '',
+        thumbnail: video.thumbnail ?? getYouTubeThumbnail(video.url) ?? '',
+        url: video.url,
+        viewerCount: parseInt(video.views.replace('K', '000').replace('M', '000000').replace('.', '')) || 0,
+        watchDuration: 0,  // updated on close
+        isFinished: false,
+      });
+      await loadRecentActivity();
+
+      // Update session for content chain tracking
+      await updateSession(videoId, 0, video.category);
     }
     setSelectedVideo(video);
   };
 
-  // Generate more videos for pagination (simulating API call)
-  const generateMoreVideos = (page: number, baseVideos: typeof VIDEOS): typeof VIDEOS => {
-    const videosPerPage = 6;
-    const newVideos: typeof VIDEOS = [];
-    
-    // Generate videos by duplicating and modifying base videos
-    for (let i = 0; i < videosPerPage; i++) {
-      const baseVideo = baseVideos[i % baseVideos.length];
-      const newId = baseVideos.length * (page - 1) + i + 1;
-      
-      newVideos.push({
-        ...baseVideo,
-        id: newId,
-        title: `${baseVideo.title} ${page > 1 ? `(Part ${page})` : ''}`,
-        views: String(Math.floor(Math.random() * 100) + 1) + (Math.random() > 0.7 ? 'K' : ''),
-        date: page === 1 ? baseVideo.date : `${page} weeks ago`,
-      });
-    }
-    
-    return newVideos;
-  };
-
-  // Load more videos (simulating API call)
-  const loadMoreVideos = async () => {
-    if (isLoadingMore || !hasMore) return;
-    
-    setIsLoadingMore(true);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const nextPage = currentPage + 1;
-    const newVideos = generateMoreVideos(nextPage, VIDEOS);
-    
-    // Limit to 5 pages for demo (30 videos total)
-    if (nextPage <= 5) {
-      setAllVideos(prev => [...prev, ...newVideos]);
-      setCurrentPage(nextPage);
-    } else {
-      setHasMore(false);
-    }
-    
-    setIsLoadingMore(false);
-  };
-
-  // Reset pagination when filter/search changes
+  // Reset scroll position when filter/search changes
   useEffect(() => {
     setCurrentPage(1);
-    setAllVideos(VIDEOS);
-    setHasMore(true);
-    // Scroll to top when filter changes
     flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, [activeFilter, searchQuery, sortBy]);
 
@@ -398,6 +414,33 @@ export default function VideosScreen({ route }: { route?: any }) {
         
         await updateWatchProgress(videoId, newProgress);
         await loadWatchHistory();
+        
+        // Track engagement behavior
+        const oldProgress = existingHistory?.progress || 0;
+        const watchTime = Math.max(30, (newProgress - oldProgress) * 2); // Estimate watch time in seconds
+        await trackVideoWatch(
+          videoId,
+          selectedVideo.category,
+          watchTime,
+          newProgress,
+          false, // skipped
+          oldProgress > 0 // rewatched
+        );
+        
+        // Track completion if video is 95%+ watched
+        if (newProgress >= 95) {
+          await trackVideoCompletion();
+        }
+        
+        // Update session for content chain tracking
+        await updateSession(videoId, watchTime, selectedVideo.category);
+        
+        // Track session end when closing video
+        const session = await getCurrentSession();
+        if (session) {
+          const sessionDuration = (Date.now() - session.startTime) / 1000; // in seconds
+          await trackSessionEnd(sessionDuration, session.videosWatched);
+        }
         
         // Auto-play next video if enabled
         if (autoPlayNext && relatedVideos.length > 0) {
@@ -429,44 +472,14 @@ export default function VideosScreen({ route }: { route?: any }) {
     setWebViewError(false);
   };
   
-  // Filter and sort videos
+  // Filter and sort videos (only live streams)
   const getFilteredAndSortedVideos = () => {
-    let result = [...allVideos];
+    // Only show live streams
+    let result = allVideos.filter(video => video.isLive !== false);
     
-    // Apply category filter
+    // Apply platform filter
     if (activeFilter !== 'all') {
-      switch (activeFilter) {
-        case 'highlights':
-          result = result.filter(v => 
-            v.category.toLowerCase().includes('highlight') || 
-            v.category.toLowerCase().includes('esports')
-          );
-          break;
-        case 'tournaments':
-          result = result.filter(v => 
-            v.category.toLowerCase().includes('esports') ||
-            v.category.toLowerCase().includes('tournament') ||
-            v.title.toLowerCase().includes('tournament')
-          );
-          break;
-        case 'tutorials':
-          result = result.filter(v => 
-            v.category.toLowerCase().includes('tutorial') ||
-            v.title.toLowerCase().includes('tutorial') ||
-            v.title.toLowerCase().includes('guide')
-          );
-          break;
-        case 'compilations':
-          result = result.filter(v => 
-            v.category.toLowerCase().includes('compilation') ||
-            v.title.toLowerCase().includes('compilation') ||
-            v.title.toLowerCase().includes('best moments') ||
-            v.title.toLowerCase().includes('highlights')
-          );
-          break;
-        default:
-          break;
-      }
+      result = result.filter(video => video.platform === activeFilter);
     }
     
     // Apply search query
@@ -502,16 +515,23 @@ export default function VideosScreen({ route }: { route?: any }) {
   
   const filteredVideos = getFilteredAndSortedVideos();
   
-  // Check if we have more videos to load (only when no filters/search)
-  const canLoadMore = hasMore && !isLoadingMore && activeFilter === 'all' && !searchQuery.trim();
-  
-  // Get related videos for the currently selected video
-  const getRelatedVideos = (currentVideo: typeof VIDEOS[0]): typeof VIDEOS => {
+  // Get related videos for the currently selected video (enhanced with content chains)
+  const getRelatedVideos = async (currentVideo: typeof VIDEOS[0]): Promise<typeof VIDEOS> => {
     if (!currentVideo) return [];
     
-    const related: Array<{ video: typeof VIDEOS[0]; score: number }> = [];
+    // Use content chain builder for better chain continuity
+    try {
+      const chain = await buildContentChain(currentVideo, allVideos, 5);
+      // Return chain videos (excluding current)
+      return chain.videos.filter(v => v.id !== currentVideo.id).slice(0, 4);
+    } catch (error) {
+      console.error('Error building content chain:', error);
+      // Fallback to simple algorithm
+    }
     
-    VIDEOS.forEach((video) => {
+    const related: { video: typeof VIDEOS[0]; score: number }[] = [];
+    
+    allVideos.forEach((video) => {
       if (video.id === currentVideo.id) return; // Skip current video
       
       let score = 0;
@@ -557,11 +577,31 @@ export default function VideosScreen({ route }: { route?: any }) {
       .map(item => item.video);
   };
   
-  const relatedVideos = selectedVideo ? getRelatedVideos(selectedVideo) : [];
+  const [relatedVideos, setRelatedVideos] = useState<typeof VIDEOS>([]);
+  
+  // Update related videos when selected video changes
+  React.useEffect(() => {
+    if (selectedVideo) {
+      getRelatedVideos(selectedVideo).then(setRelatedVideos);
+    } else {
+      setRelatedVideos([]);
+    }
+  }, [selectedVideo]);
 
   const VideoCard = ({ video }: { video: typeof VIDEOS[0] }) => {
-    const thumbnailUrl = getYouTubeThumbnail(video.url) || '';
-    const videoId = getVideoId(video.url);
+    // Get thumbnail based on platform
+    let thumbnailUrl = '';
+    if (video.thumbnail) {
+      // Use thumbnail from API if available
+      thumbnailUrl = video.thumbnail;
+    } else if (video.platform === 'youtube') {
+      thumbnailUrl = getYouTubeThumbnail(video.url) || '';
+    } else {
+      // For Facebook/TikTok, use a placeholder or default image
+      thumbnailUrl = '';
+    }
+    
+    const videoId = getVideoId(video.url) || video.url.split('/').pop() || '';
     const historyItem = videoId ? watchHistory.find(h => h.videoId === videoId) : null;
     const hasProgress = historyItem && historyItem.progress > 0 && historyItem.progress < 95;
     const isInPlaylist = videoId ? playlistVideoIds.has(videoId) : false;
@@ -615,7 +655,7 @@ export default function VideosScreen({ route }: { route?: any }) {
       if (Platform.OS === 'web') {
         longPressTimerRef.current = setTimeout(() => {
           handleLongPress();
-        }, 2000); // Show preview after 2 seconds hover
+        }, 2000) as unknown as NodeJS.Timeout; // Show preview after 2 seconds hover
       }
     };
 
@@ -633,7 +673,7 @@ export default function VideosScreen({ route }: { route?: any }) {
     return (
       <View
         ref={cardRef}
-        style={[styles.videoCard, { borderColor: `${video.color}40` }]}
+      style={[styles.videoCard, { borderColor: `${video.color}40` }]}
         // @ts-ignore - web-only props
         onMouseEnter={handleMouseEnter}
         // @ts-ignore - web-only props
@@ -661,8 +701,8 @@ export default function VideosScreen({ route }: { route?: any }) {
           {/* Progress bar overlay (if video has been watched) */}
           {hasProgress && (
             <View style={styles.progressBarContainer}>
-              <View
-                style={[
+      <View
+        style={[
                   styles.progressBarFill,
                   {
                     width: `${historyItem!.progress}%`,
@@ -674,20 +714,31 @@ export default function VideosScreen({ route }: { route?: any }) {
           )}
 
           {/* Play button overlay */}
-          <View
-            style={[
-              styles.playButton,
-              { backgroundColor: video.color, shadowColor: video.color },
-            ]}
-          >
+        <View
+          style={[
+            styles.playButton,
+            { backgroundColor: video.color, shadowColor: video.color },
+          ]}
+        >
             <Play size={20} color={COLORS.white} fill={COLORS.white} />
-          </View>
+        </View>
 
-          {/* View count badge */}
-          <View style={styles.viewBadge}>
-            <Eye size={12} color={COLORS.white60} />
-            <Text style={styles.viewCount}>{video.views}</Text>
-          </View>
+        {/* Live indicator and viewer count badge */}
+        <View style={styles.viewBadge}>
+          <View style={styles.liveIndicatorDot} />
+          <Text style={styles.liveIndicatorText}>LIVE</Text>
+        </View>
+        <View style={styles.viewerBadge}>
+          <Eye size={12} color={COLORS.white60} />
+          <Text style={styles.viewCount}>{video.views} watching</Text>
+        </View>
+        
+        {/* Platform badge */}
+        <View style={[styles.platformBadge, { backgroundColor: `${video.color}E6` }]}>
+          <Text style={styles.platformBadgeText}>
+            {video.platform?.toUpperCase() || 'LIVE'}
+          </Text>
+        </View>
 
           {/* Progress badge (if video has been watched) */}
           {hasProgress && (
@@ -697,14 +748,20 @@ export default function VideosScreen({ route }: { route?: any }) {
               </Text>
             </View>
           )}
-        </View>
+      </View>
 
       {/* Card content */}
       <View style={styles.cardContent}>
         <View style={styles.cardHeader}>
           <Text style={[styles.category, { color: video.color }]} numberOfLines={1}>
-            {video.category}
-          </Text>
+          {video.category}
+        </Text>
+          {/* Streamer / channel name */}
+          {video.channelName ? (
+            <Text style={styles.channelNameText} numberOfLines={1}>
+              📺 {video.channelName}
+            </Text>
+          ) : null}
           <View style={styles.cardMetaRow}>
             <View style={styles.metaItem}>
               <Eye size={10} color={COLORS.white60} />
@@ -748,14 +805,14 @@ export default function VideosScreen({ route }: { route?: any }) {
         </View>
       </View>
 
-        {/* Top accent line */}
-        <View
-          style={[
-            styles.accentLine,
-            { backgroundColor: video.color },
-          ]}
-        />
-        </TouchableOpacity>
+      {/* Top accent line */}
+      <View
+        style={[
+          styles.accentLine,
+          { backgroundColor: video.color },
+        ]}
+      />
+    </TouchableOpacity>
       </View>
     );
   };
@@ -783,6 +840,7 @@ export default function VideosScreen({ route }: { route?: any }) {
         });
       }, 100);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFilter]);
 
   const sortOptions = [
@@ -793,7 +851,7 @@ export default function VideosScreen({ route }: { route?: any }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <TopNavBar title="Best Moments" />
+      <TopNavBar title="Live Streams" />
       
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -926,7 +984,6 @@ export default function VideosScreen({ route }: { route?: any }) {
                 ]}
                 onPress={() => {
                   setSortBy(option.id as typeof sortBy);
-                  setShowSortMenu(false);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 }}
               >
@@ -950,7 +1007,7 @@ export default function VideosScreen({ route }: { route?: any }) {
 
       <View style={styles.header}>
         <Text style={styles.headerSubtitle}>
-          {searchQuery ? `Search results for "${searchQuery}"` : 'Curated highlights from tournaments and streams'}
+          {searchQuery ? `Search results for "${searchQuery}"` : 'Live streams from YouTube, Facebook, and TikTok'}
         </Text>
       </View>
 
@@ -959,53 +1016,159 @@ export default function VideosScreen({ route }: { route?: any }) {
         data={filteredVideos}
         renderItem={({ item }) => <VideoCard video={item} />}
         keyExtractor={(item) => item.id.toString()}
+        onScroll={(event) => {
+          const scrollY = event.nativeEvent.contentOffset.y;
+          trackScrollDepth(scrollY);
+        }}
+        scrollEventThrottle={16}
         numColumns={2}
         columnWrapperStyle={styles.columnWrapper}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        onEndReached={() => {
-          if (canLoadMore) {
-            loadMoreVideos();
-          }
-        }}
-        onEndReachedThreshold={0.5}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={COLORS.neonRed}
+            colors={[COLORS.neonRed]}
+          />
+        }
+        ListHeaderComponent={
+          recentActivity.length > 0 ? (
+            <View style={styles.recentSection}>
+              <Text style={styles.recentTitle}>🕐 RECENTLY WATCHED</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentRow}>
+                {recentActivity.map(item => (
+                  <TouchableOpacity
+                    key={item.streamId}
+                    style={styles.recentCard}
+                    onPress={() => {
+                      // Find the video in allVideos and open it
+                      const found = allVideos.find(v =>
+                        v.url === item.url ||
+                        getVideoId(v.url) === item.streamId ||
+                        v.url === item.streamId
+                      );
+                      if (found) handleVideoPress(found);
+                      else Linking.openURL(item.url);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Image
+                      source={{ uri: item.thumbnail || `https://img.youtube.com/vi/${item.streamId}/mqdefault.jpg` }}
+                      style={styles.recentThumb}
+                      contentFit="cover"
+                    />
+                    {/* Platform badge */}
+                    <View style={[styles.recentPlatformBadge, { backgroundColor: PLATFORM_COLORS[item.platform] }]}>
+                      <Text style={styles.recentPlatformText}>{PLATFORM_LABELS[item.platform]}</Text>
+                    </View>
+                    <Text style={styles.recentCardTitle} numberOfLines={2}>{item.title}</Text>
+                    <Text style={styles.recentCardTime}>{formatRelativeTime(item.watchedAt)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null
+        }
+        // No pagination for live streams - they're real-time
+        onEndReached={undefined}
+        onEndReachedThreshold={undefined}
         removeClippedSubviews={true}
         maxToRenderPerBatch={10}
         updateCellsBatchingPeriod={50}
         initialNumToRender={6}
         windowSize={10}
         ListFooterComponent={
-          isLoadingMore ? (
+          streamsLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color={COLORS.neonTeal} />
-              <Text style={styles.loadingText}>Loading more videos...</Text>
+              <Text style={styles.loadingText}>Loading live streams...</Text>
             </View>
-          ) : !hasMore && filteredVideos.length > 6 ? (
+          ) : filteredVideos.length > 0 ? (
             <View style={styles.endContainer}>
-              <Text style={styles.endText}>You've reached the end</Text>
+              <Text style={styles.endText}>
+                Showing {filteredVideos.length} live stream{filteredVideos.length !== 1 ? 's' : ''}
+              </Text>
+              <Text style={styles.endSubtext}>Streams update every 30 seconds</Text>
             </View>
           ) : null
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {searchQuery
-                ? `No videos found for "${searchQuery}"`
-                : activeFilter !== 'all'
-                ? `No videos found for ${categories.find(f => f.id === activeFilter)?.label || activeFilter}`
-                : 'No videos found'}
-            </Text>
-            {(searchQuery || activeFilter !== 'all') && (
-              <TouchableOpacity
-                style={styles.clearFiltersButton}
-                onPress={() => {
-                  setSearchQuery('');
-                  setActiveFilter('all');
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }}
-              >
-                <Text style={styles.clearFiltersText}>Clear Filters</Text>
-              </TouchableOpacity>
+            {streamsLoading ? (
+              <>
+                <ActivityIndicator size="large" color={COLORS.neonTeal} />
+                <Text style={styles.emptySubtext}>Checking for live streams…</Text>
+              </>
+            ) : searchQuery || activeFilter !== 'all' ? (
+              /* ── Filtered / search empty ── */
+              <>
+                <Text style={styles.emptyText}>
+                  {searchQuery
+                    ? `No live streams found for "${searchQuery}"`
+                    : `No ${categories.find(f => f.id === activeFilter)?.label || activeFilter} streams live right now`}
+                </Text>
+                <TouchableOpacity
+                  style={styles.clearFiltersButton}
+                  onPress={() => {
+                    setSearchQuery('');
+                    setActiveFilter('all');
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                >
+                  <Text style={styles.clearFiltersText}>Show All Platforms</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              /* ── No one is live right now ── */
+              <>
+                <Text style={styles.emptyIcon}>📡</Text>
+                <Text style={styles.emptyText}>No one is live right now</Text>
+                <Text style={styles.emptySubtext}>
+                  Anyone who connects their YouTube, Facebook, or TikTok account will appear here automatically when they go live.
+                </Text>
+
+                {/* CTA row */}
+                <View style={styles.emptyCtaRow}>
+                  <TouchableOpacity
+                    style={styles.emptyCtaPrimary}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      refetchStreams();
+                    }}
+                  >
+                    <Text style={styles.emptyCtaPrimaryText}>🔄  Refresh</Text>
+                  </TouchableOpacity>
+
+                  {isAuthenticated ? (
+                    <TouchableOpacity
+                      style={styles.emptyCtaSecondary}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        // Navigate to Profile tab where ConnectedAccounts lives
+                        (navigation as any)?.navigate?.('profile');
+                      }}
+                    >
+                      <Text style={styles.emptyCtaSecondaryText}>🔗  Connect Your Account</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.emptyCtaSecondary}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        (navigation as any)?.navigate?.('signup');
+                      }}
+                    >
+                      <Text style={styles.emptyCtaSecondaryText}>✨  Sign Up to Stream</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <Text style={styles.emptyHint}>
+                  Streams refresh automatically every 30 seconds
+                </Text>
+              </>
             )}
           </View>
         }
@@ -1023,7 +1186,7 @@ export default function VideosScreen({ route }: { route?: any }) {
             contentContainerStyle={styles.modalScrollContent}
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.modalContent}>
+          <View style={styles.modalContent}>
             {/* Close button */}
             <TouchableOpacity
               style={styles.closeButton}
@@ -1047,15 +1210,15 @@ export default function VideosScreen({ route }: { route?: any }) {
                       : selectedVideo.url;
                     
                     return (
-                      <WebView
+                  <WebView
                         source={{ uri: embedUrl }}
-                        style={styles.webview}
-                        allowsFullscreenVideo
+                    style={styles.webview}
+                    allowsFullscreenVideo
                         allowsInlineMediaPlayback
                         allowsBackForwardNavigationGestures={false}
-                        javaScriptEnabled
-                        domStorageEnabled
-                        mediaPlaybackRequiresUserAction={false}
+                    javaScriptEnabled
+                    domStorageEnabled
+                    mediaPlaybackRequiresUserAction={false}
                         originWhitelist={['*']}
                         mixedContentMode="always"
                         startInLoadingState
@@ -1134,14 +1297,83 @@ export default function VideosScreen({ route }: { route?: any }) {
                 <Text style={styles.videoInfoCategory}>
                   {selectedVideo.category} • {selectedVideo.date}
                 </Text>
+                
+                {/* Action Buttons - Like, Comment, Share */}
+                <View style={styles.actionButtons}>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => {
+                      if (!isAuthenticated) {
+                        setAuthAction('like');
+                        setShowAuthModal(true);
+                        return;
+                      }
+                      handleLike(selectedVideo);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Heart
+                      size={20}
+                      color={likedVideos.has(getVideoId(selectedVideo.url) || '') ? COLORS.neonRed : COLORS.white60}
+                      fill={likedVideos.has(getVideoId(selectedVideo.url) || '') ? COLORS.neonRed : 'none'}
+                    />
+                    <Text style={[
+                      styles.actionButtonText,
+                      likedVideos.has(getVideoId(selectedVideo.url) || '') && styles.actionButtonTextActive
+                    ]}>
+                      {videoLikes[getVideoId(selectedVideo.url) || ''] || 0}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => {
+                      if (!isAuthenticated) {
+                        setAuthAction('comment');
+                        setShowAuthModal(true);
+                        return;
+                      }
+                      // Handle comment - show comment section
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <MessageCircle size={20} color={COLORS.white60} />
+                    <Text style={styles.actionButtonText}>Comment</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => {
+                      if (!isAuthenticated) {
+                        setAuthAction('share');
+                        setShowAuthModal(true);
+                        return;
+                      }
+                      // Handle share
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      const videoId = getVideoId(selectedVideo.url);
+                      if (videoId) {
+                        Linking.openURL(`https://www.youtube.com/watch?v=${videoId}`);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Share2 size={20} color={COLORS.white60} />
+                    <Text style={styles.actionButtonText}>Share</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
 
-            {/* Up Next - Related Videos */}
+            {/* Up Next - Related Videos (Content Chain) */}
             {selectedVideo && relatedVideos.length > 0 && (
               <View style={styles.upNextContainer}>
                 <View style={styles.upNextHeader}>
-                  <Text style={styles.upNextTitle}>Up Next</Text>
+                  <View>
+                    <Text style={styles.upNextTitle}>Up Next</Text>
+                    <Text style={styles.upNextSubtitle}>Continue the chain</Text>
+                  </View>
                   <TouchableOpacity
                     style={styles.autoPlayToggle}
                     onPress={() => {
@@ -1258,6 +1490,13 @@ export default function VideosScreen({ route }: { route?: any }) {
         />
       )}
 
+      {/* Auth Required Modal */}
+      <AuthRequiredModal
+        visible={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        action={authAction}
+      />
+
       {/* Add to Playlist Modal */}
       <Modal
         visible={showPlaylistModal}
@@ -1319,6 +1558,7 @@ export default function VideosScreen({ route }: { route?: any }) {
                           await removeVideoFromPlaylist(playlist.id, videoId);
                         } else {
                           await addVideoToPlaylist(playlist.id, videoId);
+                        trackPlaylistAddition();
                         }
                         await loadPlaylists();
                       }}
@@ -1375,9 +1615,51 @@ const styles = StyleSheet.create<{
   cardProgressInfo: ViewStyle;
   progressText: TextStyle;
   cardActions: ViewStyle;
+  cardActionButtons: ViewStyle;
   addToPlaylistButton: ViewStyle;
   videoDate: TextStyle;
   accentLine: ViewStyle;
+  searchContainer: ViewStyle;
+  searchBar: ViewStyle;
+  searchIcon: ViewStyle;
+  searchInput: TextStyle;
+  clearButton: ViewStyle;
+  searchHistoryContainer: ViewStyle;
+  searchHistoryHeader: ViewStyle;
+  searchHistoryTitle: TextStyle;
+  clearHistoryText: TextStyle;
+  searchHistoryList: ViewStyle;
+  searchHistoryItem: ViewStyle;
+  searchHistoryText: TextStyle;
+  tabsContainer: ViewStyle;
+  tabsScrollView: ViewStyle;
+  tabsContent: ViewStyle;
+  tabButton: ViewStyle;
+  tabContent: ViewStyle;
+  tabLabel: TextStyle;
+  tabLabelActive: TextStyle;
+  tabIndicator: ViewStyle;
+  sortContainer: ViewStyle;
+  sortHeader: ViewStyle;
+  sortLabel: TextStyle;
+  sortButtons: ViewStyle;
+  sortButton: ViewStyle;
+  sortButtonActive: ViewStyle;
+  sortButtonText: TextStyle;
+  sortButtonTextActive: TextStyle;
+  emptyContainer: ViewStyle;
+  emptyIcon: TextStyle;
+  emptyText: TextStyle;
+  emptySubtext: TextStyle;
+  emptyHint: TextStyle;
+  emptyCtaRow: ViewStyle;
+  emptyCtaPrimary: ViewStyle;
+  emptyCtaPrimaryText: TextStyle;
+  emptyCtaSecondary: ViewStyle;
+  emptyCtaSecondaryText: TextStyle;
+  clearFiltersButton: ViewStyle;
+  clearFiltersText: TextStyle;
+  channelNameText: TextStyle;
   playlistModalOverlay: ViewStyle;
   playlistModalContent: ViewStyle;
   playlistModalHeader: ViewStyle;
@@ -1695,10 +1977,61 @@ const styles = StyleSheet.create<{
     justifyContent: 'center',
     gap: 16,
   },
+  emptyIcon: {
+    fontSize: 48,
+    textAlign: 'center',
+  },
   emptyText: {
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.white,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 13,
     color: COLORS.white60,
     textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 280,
+  },
+  emptyHint: {
+    fontSize: 11,
+    color: COLORS.white40,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  emptyCtaRow: {
+    flexDirection: 'column',
+    gap: 10,
+    width: '100%',
+    maxWidth: 280,
+    marginTop: 4,
+  },
+  emptyCtaPrimary: {
+    backgroundColor: COLORS.neonTeal,
+    paddingVertical: 13,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  emptyCtaPrimaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.dark,
+    letterSpacing: 0.5,
+  },
+  emptyCtaSecondary: {
+    backgroundColor: COLORS.darkLight,
+    borderWidth: 1,
+    borderColor: `${COLORS.neonTeal}60`,
+    paddingVertical: 13,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  emptyCtaSecondaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.neonTeal,
+    letterSpacing: 0.5,
   },
   clearFiltersButton: {
     paddingHorizontal: 20,
@@ -1713,6 +2046,12 @@ const styles = StyleSheet.create<{
     color: COLORS.neonTeal,
     fontWeight: '600',
     letterSpacing: 0.5,
+  },
+  channelNameText: {
+    fontSize: 11,
+    color: COLORS.white60,
+    marginBottom: 4,
+    fontWeight: '500',
   },
   listContent: {
     paddingHorizontal: 8,
@@ -1860,6 +2199,11 @@ const styles = StyleSheet.create<{
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 4,
+  },
+  cardActionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
   },
   addToPlaylistButton: {
     padding: 4,
@@ -2220,5 +2564,86 @@ const styles = StyleSheet.create<{
     height: 8,
     borderRadius: 4,
     backgroundColor: COLORS.dark,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#ffffff08',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.darkLight,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    color: COLORS.white60,
+    fontWeight: '600',
+  },
+  actionButtonTextActive: {
+    color: COLORS.neonRed,
+  },
+
+  // ── Recently Watched Live Streams ─────────────────────────────────────────
+  recentSection: {
+    paddingTop: 12,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ffffff08',
+    marginBottom: 8,
+  },
+  recentTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    color: COLORS.neonTeal,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  recentRow: {
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  recentCard: {
+    width: 130,
+    gap: 4,
+  },
+  recentThumb: {
+    width: 130,
+    height: 74,
+    borderRadius: 6,
+    backgroundColor: COLORS.darkLight,
+  },
+  recentPlatformBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 3,
+  },
+  recentPlatformText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.3,
+  },
+  recentCardTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.white,
+    lineHeight: 14,
+    marginTop: 2,
+  },
+  recentCardTime: {
+    fontSize: 10,
+    color: COLORS.white40,
   },
 });

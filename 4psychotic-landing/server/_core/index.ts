@@ -4,7 +4,7 @@ import { createServer } from "http";
 import net from "net";
 import cors from "cors";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
+import { registerOAuthRoutes } from "../oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -76,8 +76,19 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
+  server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
+    
+    // Start live status polling service
+    if (process.env.NODE_ENV === 'production' || process.env.ENABLE_LIVE_POLLING === 'true') {
+      try {
+        const { startLiveStatusPolling } = await import('../liveStatusPolling');
+        startLiveStatusPolling(3); // Poll every 3 minutes
+        console.log('[LiveStatusPolling] Background polling service started');
+      } catch (error) {
+        console.warn('[LiveStatusPolling] Failed to start polling service:', error);
+      }
+    }
   });
 }
 

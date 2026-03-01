@@ -103,6 +103,16 @@ export default function SocialProof({
   isLive = false,
   viewerCount = 0,
 }: SocialProofProps) {
+  const [activityCount, setActivityCount] = useState(0);
+  
+  useEffect(() => {
+    // Simulate real-time activity updates
+    const interval = setInterval(() => {
+      setActivityCount(prev => prev + Math.floor(Math.random() * 3));
+    }, 10000); // Update every 10 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
   const [animatedCount, setAnimatedCount] = useState(0);
   const [activities] = useState<ActivityItem[]>(mockActivities);
   const [testimonials] = useState<Testimonial[]>(mockTestimonials);
@@ -177,7 +187,14 @@ export default function SocialProof({
 
       {/* Recent Activity Feed */}
       <View style={styles.activitySection}>
-        <Text style={styles.sectionTitle}>Recent Activity</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Recent Activity</Text>
+          {activityCount > 0 && (
+            <View style={styles.activityBadge}>
+              <Text style={styles.activityBadgeText}>+{activityCount} new</Text>
+            </View>
+          )}
+        </View>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}

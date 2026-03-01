@@ -15,15 +15,19 @@ import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { Play, Radio, Zap, Gamepad2, Star, X } from 'lucide-react-native';
 import { trpc } from '../../lib/trpc';
-import TrendingVideosCarousel from '../../components/TrendingVideosCarousel';
+import SmartTrendingCarousel from '../../components/SmartTrendingCarousel';
 import ContinueWatching from '../../components/ContinueWatching';
 import AnimatedStat from '../../components/AnimatedStat';
 import TopNavBar from '../../components/TopNavBar';
 import PersonalizedRecommendations from '../../components/PersonalizedRecommendations';
-import EnhancedLiveBadge from '../../components/EnhancedLiveBadge';
+import LiveStreamOptimization from '../../components/LiveStreamOptimization';
 import SocialProof from '../../components/SocialProof';
+import SessionDepthIndicator from '../../components/SessionDepthIndicator';
+import ReturnTriggers from '../../components/ReturnTriggers';
 import { WatchHistoryItem, saveWatchHistory, updateWatchProgress, getRecentWatchHistory } from '../../lib/watchHistory';
 import { RecommendedVideo } from '../../lib/recommendations';
+import { trackVideoWatch } from '../../lib/engagementTracking';
+import { startSession, updateSession, endSession } from '../../lib/sessionTracking';
 
 // Import WebView for video playback
 let WebView: any = null;
@@ -55,12 +59,25 @@ export default function HomeScreen() {
     }
   );
 
-  const { data: trendingVideos, isLoading: videosLoading } = trpc.youtube.recentVideos.useQuery(
-    { maxResults: 6 },
+  // Fetch live streams instead of regular videos
+  const { data: liveStreams, isLoading: videosLoading } = trpc.youtube.liveStreams.useQuery(
+    undefined,
     {
-      refetchInterval: 300000, // Refetch every 5 minutes
+      refetchInterval: 30000, // Refetch every 30 seconds for live streams
     }
   );
+  
+  // Convert live streams to trending videos format for compatibility
+  const trendingVideos = React.useMemo(() => {
+    if (!liveStreams) return [];
+    return liveStreams.map((stream, index) => ({
+      videoId: stream.streamId,
+      title: stream.title,
+      thumbnail: stream.thumbnail,
+      category: stream.platform,
+      publishedAt: stream.startedAt || new Date().toISOString(),
+    }));
+  }, [liveStreams]);
 
   const { data: channelStats, isLoading: statsLoading } = trpc.youtube.channelStats.useQuery(
     undefined,
@@ -143,6 +160,14 @@ export default function HomeScreen() {
 
   const [selectedVideo, setSelectedVideo] = useState<any>(null);
   const cardAnimations = useRef<{ [key: number]: Animated.Value }>({});
+  
+  // Initialize session on mount
+  React.useEffect(() => {
+    startSession();
+    return () => {
+      endSession();
+    };
+  }, []);
 
   const isLive = liveStatus?.isLive ?? false;
   const liveData = liveStatus?.isLive
@@ -167,6 +192,9 @@ export default function HomeScreen() {
         category: video.category || 'Gaming',
         progress: historyItem?.progress || 0,
       });
+      
+      // Update session for content chain tracking
+      await updateSession(videoId, 0, video.category || 'Gaming');
     }
 
     // Convert to format compatible with video modal
@@ -235,11 +263,26 @@ export default function HomeScreen() {
       const historyItem = existingHistory.find(h => h.videoId === selectedVideo.videoId);
       
       // If progress is low or doesn't exist, assume user watched some
-      const newProgress = historyItem && historyItem.progress > 0 
-        ? Math.min(95, historyItem.progress + 25) // Increment by 25%
+      const oldProgress = historyItem?.progress || 0;
+      const newProgress = oldProgress > 0 
+        ? Math.min(95, oldProgress + 25) // Increment by 25%
         : 25; // Start at 25% if new
       
       await updateWatchProgress(selectedVideo.videoId, newProgress);
+      
+      // Track session depth and watch time
+      const watchTime = Math.max(30, (newProgress - oldProgress) * 2); // Estimate in seconds
+      await updateSession(selectedVideo.videoId, watchTime, selectedVideo.category || 'Gaming');
+      
+      // Track engagement
+      await trackVideoWatch(
+        selectedVideo.videoId,
+        selectedVideo.category || 'Gaming',
+        watchTime,
+        newProgress,
+        false,
+        oldProgress > 0
+      );
     }
     setSelectedVideo(null);
   };
@@ -382,11 +425,16 @@ export default function HomeScreen() {
         {/* Hero Section */}
         <View style={styles.hero}>
           <View style={styles.heroContent}>
-            {/* Enhanced Live Badge with Countdown */}
+            {/* Live Stream Optimization */}
             {!loading && (
-              <EnhancedLiveBadge
+              <LiveStreamOptimization
                 isLive={isLive}
-                liveData={liveData}
+                liveData={liveData && liveStatus ? {
+                  title: liveData.title,
+                  viewerCount: liveData.viewerCount,
+                  videoId: liveStatus.videoId,
+                  thumbnail: liveStatus.thumbnail,
+                } : null}
                 nextStreamTime={new Date(Date.now() + 2 * 60 * 60 * 1000)} // Default: 2 hours from now
                 previousStreamHighlight={
                   trendingVideos && trendingVideos.length > 0
@@ -394,22 +442,51 @@ export default function HomeScreen() {
                         title: trendingVideos[0].title || 'Previous Stream',
                         thumbnail: trendingVideos[0].thumbnail || '',
                         url: `https://www.youtube.com/watch?v=${trendingVideos[0].videoId}`,
+                        videoId: trendingVideos[0].videoId,
                       }
                     : null
+                }
+                bestClips={
+                  trendingVideos && trendingVideos.length > 1
+                    ? trendingVideos.slice(1, 4).map((video: any) => ({
+                        title: video.title || 'Best Clip',
+                        thumbnail: video.thumbnail || '',
+                        url: `https://www.youtube.com/watch?v=${video.videoId}`,
+                        timestamp: 'Yesterday',
+                      }))
+                    : []
                 }
               />
             )}
 
-            {/* Trending Videos Carousel */}
+            {/* Smart Trending Videos Carousel */}
             {!videosLoading && trendingVideos && trendingVideos.length > 0 && (
-              <TrendingVideosCarousel
-                videos={trendingVideos}
+              <SmartTrendingCarousel
+                videos={trendingVideos.map((video: any) => ({
+                  videoId: video.videoId,
+                  title: video.title,
+                  thumbnail: video.thumbnail || '',
+                  category: video.category || 'Gaming',
+                  url: `https://www.youtube.com/watch?v=${video.videoId}`, // Use watch URL for autoplay
+                  views: '0', // Will be calculated by trending engine
+                  date: video.publishedAt || new Date().toISOString(),
+                }))}
                 onVideoPress={handleVideoPress}
               />
             )}
 
             {/* Continue Watching Section */}
             <ContinueWatching onVideoPress={handleContinueWatchingPress} />
+
+            {/* Session Depth Indicator */}
+            <View style={styles.sessionContainer}>
+              <SessionDepthIndicator />
+            </View>
+
+            {/* Return Triggers */}
+            <View style={styles.returnTriggersContainer}>
+              <ReturnTriggers />
+            </View>
 
             {/* Personalized Recommendations */}
             {!videosLoading && trendingVideos && trendingVideos.length > 0 && (
@@ -636,6 +713,13 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  streakContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: COLORS.dark,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ffffff08',
+  },
   container: {
     flex: 1,
     width: '100%',
@@ -912,5 +996,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: COLORS.white,
+  },
+  sessionContainer: {
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  returnTriggersContainer: {
+    marginTop: 16,
+    marginBottom: 8,
   },
 });

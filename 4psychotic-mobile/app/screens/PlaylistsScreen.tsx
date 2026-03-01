@@ -22,6 +22,7 @@ import {
   deletePlaylist,
   Playlist,
 } from '../../lib/playlists';
+import { trackPlaylistCreation } from '../../lib/analytics';
 
 const COLORS = {
   dark: '#0a0a0a',
@@ -55,6 +56,7 @@ export default function PlaylistsScreen() {
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await createPlaylist(newPlaylistName.trim(), newPlaylistDescription.trim() || undefined);
+    trackPlaylistCreation();
     setNewPlaylistName('');
     setNewPlaylistDescription('');
     setShowCreateModal(false);
