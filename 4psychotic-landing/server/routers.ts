@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { getYouTubeLiveStatus, getYouTubeChannelStats, getYouTubeRecentVideos } from "./youtube";
+import { z } from "zod";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -25,9 +26,15 @@ export const appRouter = router({
     channelStats: publicProcedure.query(async () => {
       return await getYouTubeChannelStats();
     }),
-    recentVideos: publicProcedure.query(async ({ input }: { input?: { maxResults?: number } }) => {
-      return await getYouTubeRecentVideos(input?.maxResults || 6);
-    }),
+    recentVideos: publicProcedure
+      .input(
+        z.object({
+          maxResults: z.number().min(1).max(50).optional(),
+        }).optional()
+      )
+      .query(async ({ input }) => {
+        return await getYouTubeRecentVideos(input?.maxResults || 6);
+      }),
   }),
 });
 

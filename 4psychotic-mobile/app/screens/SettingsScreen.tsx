@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Send, Check } from 'lucide-react-native';
+import TopNavBar from '../../components/TopNavBar';
 
 const { width } = Dimensions.get('window');
 
@@ -55,11 +56,11 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <TopNavBar title="Get In Touch" />
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Get In Touch</Text>
           <Text style={styles.headerSubtitle}>
             Reach out for collaborations, sponsorships, or just to say hello
           </Text>

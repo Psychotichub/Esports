@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Facebook, Instagram, Youtube, Twitter, ExternalLink } from 'lucide-react-native';
+import TopNavBar from '../../components/TopNavBar';
 
 const { width } = Dimensions.get('window');
 
@@ -75,12 +76,9 @@ export default function ProfileScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <TopNavBar title="Profile" />
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Profile</Text>
-        </View>
 
         {loading ? (
           <View style={styles.loadingContainer}>
